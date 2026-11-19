@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>絲路結伴</title>
+    <style>
+        html, body { height: 100%; }
+        body {
+            font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', 'Segoe UI', sans-serif;
+            text-align: left; background: #f4efe4; margin: 0; color: #1b3a4b;
+            overflow: hidden;
+        }
+        #gameArea { width: 100vw; height: 100vh; position: relative; }
+        #gameArea canvas { display: block; position: absolute; inset: 0; }
+        #intro {
+            position: absolute; top: 16px; left: 16px; z-index: 20;
+            width: min(280px, 34vw); pointer-events: none;
+            background: rgba(255,248,234,0.92);
+            border: 3px solid #1b3a4b; border-radius: 16px;
+            box-shadow: 0 0 0 3px #c6a15b;
+            padding: 12px 14px;
+        }
+        #intro h2 { margin: 0 0 6px; color: #7a2e12; font-size: 22px; }
+        #intro p { margin: 0 0 4px; font-size: 15px; line-height: 1.4; }
+        #timer {
+            position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+            z-index: 20; display: none;
+            font-size: 22px; color: #7a2e12; font-weight: bold;
+            background: rgba(255,248,234,0.92); border-radius: 999px;
+            padding: 6px 16px;
+        }
+        #status { margin: 8px 0 0; font-size: 15px; font-weight: bold; line-height: 1.4; }
+        button {
+            box-sizing: border-box;
+            padding: 10px 18px;
+            background: #1aa37a;
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 18px;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        button:hover { background: #148a67; }
+        button:disabled { background: #999; cursor: not-allowed; }
+        #settingsBtn {
+            position: absolute; top: 18px; right: 18px; z-index: 30;
+            min-width: 92px;
+        }
+        #startBtn {
+            position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%);
+            z-index: 25; min-width: 148px; font-size: 28px; padding: 12px 36px;
+            box-shadow: 0 8px 0 rgba(14,90,70,0.18);
+        }
+        body.ended #startBtn { top: 68%; }
+        #settingsModal {
+            position: absolute; inset: 0; z-index: 40;
+            background: rgba(27,58,75,0.28);
+            display: none; align-items: flex-start; justify-content: flex-end;
+            padding: 72px 18px 18px;
+        }
+        #settingsModal.open { display: flex; }
+        #settingsSheet {
+            width: min(360px, calc(100vw - 36px));
+            background: #fff8ea;
+            border: 4px solid #1b3a4b;
+            box-shadow: 0 0 0 4px #c6a15b;
+            border-radius: 18px;
+            padding: 16px;
+        }
+        #settingsSheet h2 { margin: 0 0 10px; text-align: center; color: #7a2e12; font-size: 22px; }
+        #difficultyRow { margin-bottom: 12px; }
+        .diffLabel { text-align: center; font-weight: bold; color: #7a2e12; margin-bottom: 6px; }
+        .difficulty { display: flex; gap: 8px; }
+        .difficulty button { flex: 1; background: #efe6d4; color: #1b3a4b; }
+        .difficulty button:hover { background: #e2d3b4; }
+        .difficulty button.active,
+        .difficulty button.active:hover { background: #1aa37a; color: #fff; }
+        #settingsSheet .controls { display: flex; flex-direction: column; gap: 8px; }
+        #settingsSheet .controls button { width: 100%; border-radius: 12px; }
+        #infoPanel { margin-top: 12px; font-size: 14px; line-height: 1.45; }
+
+        #gameOver {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(92%, 920px);
+            font-size: 48px;
+            font-weight: bold;
+            line-height: 1.25;
+            text-align: center;
+            color: #b5522a;
+            display: none;
+            z-index: 22;
+            pointer-events: none;
+            text-shadow: 0 3px 0 #fff8ea;
+        }
+        #infoPanel {
+            margin-top: 4px;
+            background: #fff8ea; padding: 12px;
+            border: 4px solid #1b3a4b; border-radius: 16px;
+            box-shadow: 0 0 0 4px #c6a15b;
+            font-size: 14px; text-align: left; line-height: 1.45;
+        }
+        #infoPanel h3 { margin: 0 0 8px; color: #7a2e12; text-align: center; }
+
+        /* 血量條樣式（保持原樣） */
+        .hpBarContainer {
+            position: absolute; width: 80px; height: 10px;
+            background: radial-gradient(circle at center, #444 0%, #222 70%, #111 100%);
+            border: 3px solid #666; border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.1);
+            z-index: 5; display: none; overflow: hidden;
+        }
+        .hpBar { height: 100%; width: 100%; background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            border-radius: 12px; transition: width 0.3s ease; position: relative;}
+        .hpBar::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+            animation: shine 2s infinite; border-radius: 12px;
+        }
+        @keyframes shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .hpText {
+            position: absolute; top: -28px; left: 50%; transform: translateX(-50%);
+            font-weight: bold; color: white; text-shadow: 2px 2px 4px black; font-size: 14px;
+        }
+        .player1 { border-color: #b5522a; }
+        .player2 { border-color: #243e73; }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <div id="hpBarContainer1" class="hpBarContainer player1">
+            <div class="hpText">P1 100/100</div>
+            <div id="hpBar1" class="hpBar"></div>
+        </div>
+        <div id="hpBarContainer2" class="hpBarContainer player2">
+            <div class="hpText">P2 100/100</div>
+            <div id="hpBar2" class="hpBar"></div>
+        </div>
+        <div id="intro">
+            <h2>絲路結伴</h2>
+            <p>兩位旅人要一起走到市集。</p>
+            <p>待在紅框裡，閃過不同顏色的駱駝。</p>
+            <p>走出紅框會慢慢沒力。</p>
+        </div>
+        <div id="gameOver"></div>
+        <div id="timer">剩餘時間: 45</div>
+        <button id="settingsBtn" type="button">設定</button>
+        <button id="startBtn" type="button">開始</button>
+        <div id="settingsModal">
+            <div id="settingsSheet">
+                <h2>連線設定</h2>
+                <div id="difficultyRow">
+                    <div class="diffLabel">難度</div>
+                    <div class="difficulty">
+                        <button id="easyBtn" type="button">簡單</button>
+                        <button id="hardBtn" type="button" class="active">困難</button>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button id="pauseBtn" type="button" disabled>暫停遊戲</button>
+                    <button id="connectBtn1" type="button">連接東方 micro:bit</button>
+                    <button id="disconnectBtn1" type="button" disabled>斷開東方</button>
+                    <button id="connectBtn2" type="button">連接西方 micro:bit</button>
+                    <button id="disconnectBtn2" type="button" disabled>斷開西方</button>
+                    <button id="closeSettings" type="button">關閉</button>
+                </div>
+                <div id="status">狀態：未連接</div>
+                <div id="infoPanel">
+                    <div>東方 WASD，西方 IJKL。紅框裡面可以走。</div>
+                    <div>路上的駱駝撞到就停下。走出紅框會慢慢沒力。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+    <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/DRACOLoader.js';
+
+    // 全域變數
+    let device1 = null, device2 = null;
+    let gameRunning = false, gameOver = false;
+    let timeLeft = 45, timerInterval = null;
+    let scene, camera, renderer;
+    let gameClock = 0;
+    let lastTick = 0;
+    let meeting = false;
+    let difficulty = 'hard';
+    const scheduled = [];
+
+    const maxSpeed = 0.05;
+    const coneSpeed = 0.025;
+    const yellowSpeed = 0.03;
+    const sphereSpeed = 0.15;
+    const OBJECT_SCALE = 0.4, CUBE_SCALE = 0.6, HITBOX_SCALE = 0.6;
+    const SAFE_ZONE = 5.8;
+    const MAX_ZONE = 7.0;
+    const GENERATE_EDGE = 8.0;
+    const PLANE_SIZE = 12;
+
+    const players = [
+        { name: '東方旅人', side: 'east', goods: '絲綢', color: 0xb5522a, cube: null, packMesh: null, hitbox: null, hp: 100, dx: 0, dz: 0, hpBar: null, hpContainer: null, hpText: null, damageInt: null, recoverInt: null, leftEdgeTime: 0 },
+        { name: '西方旅人', side: 'west', goods: '香料', color: 0x243e73, cube: null, packMesh: null, hitbox: null, hp: 100, dx: 0, dz: 0, hpBar: null, hpContainer: null, hpText: null, damageInt: null, recoverInt: null, leftEdgeTime: 0 }
+    ];
+
+    let obstacles = [], yellowObstacles = [], sphereObstacles = [], lines = [];
+    let coneGeo, coneMat;
+    let camelRoot = null, camelMatSand = null, camelMatGold = null, camelMatBlue = null;
+    let merchantTemplate = null;
+    let merchantHeight = 2.3;
+    let cityRoot = null;
+    const winCamPos = new THREE.Vector3(0, 4.8, 1.5);
+    const winCamAt = new THREE.Vector3(0, 5.4, -16);
+    const camAt = new THREE.Vector3(0, 0, 2.4);
+    let camelHalfX = 0.4, camelHalfZ = 0.2;
+    let roadTex, desertTex;
+    let playerHalf = 0.5 * CUBE_SCALE * HITBOX_SCALE / 2;
+    const hpAnchor = new THREE.Vector3();
+
+    const keys = { i: false, k: false, j: false, l: false,
+                   w: false, s: false, a: false, d: false };
+
+    // DOM 元素
+    const timerEl = document.getElementById('timer');
+    const statusEl = document.getElementById('status');
+    const gameOverEl = document.getElementById('gameOver');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const connectBtn1 = document.getElementById('connectBtn1');
+    const disconnectBtn1 = document.getElementById('disconnectBtn1');
+    const connectBtn2 = document.getElementById('connectBtn2');
+    const disconnectBtn2 = document.getElementById('disconnectBtn2');
+
+    players[0].hpBar = document.getElementById('hpBar1');
+    players[1].hpBar = document.getElementById('hpBar2');
+    players[0].hpContainer = document.getElementById('hpBarContainer1');
+    players[1].hpContainer = document.getElementById('hpBarContainer2');
+    players[0].hpText = players[0].hpContainer.querySelector('.hpText');
+    players[1].hpText = players[1].hpContainer.querySelector('.hpText');
+
+    const UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_TX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_RX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+    // 更新血量條
+    function updateHpBar(player) {
+        const percent = (player.hp / 100) * 100;
+        player.hpBar.style.width = percent + '%';
+        player.hpText.textContent = `${player.name}·${player.goods} ${player.hp}/100`;
+        if (percent > 60) player.hpBar.style.background = 'linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%)';
+        else if (percent > 30) player.hpBar.style.background = 'linear-gradient(90deg, #FFEB3B 0%, #FFC107 100%)';
+        else player.hpBar.style.background = 'linear-gradient(90deg, #F44336 0%, #D32F2F 100%)';
+    }
+
+    // 扣血/回血
+    function startDamage(player) {
+        if (player.damageInt) return;
+        player.damageInt = setInterval(() => {
+            player.hp = Math.max(0, player.hp - 15);
+            updateHpBar(player);
+            if (player.hp <= 0) endGame(`${player.name} 在沙漠裡倒下了`);
+        }, 500);
+    }
+    function startRecover(player) {
+        if (player.recoverInt) return;
+        player.recoverInt = setInterval(() => {
+            player.hp = Math.min(100, player.hp + 5);
+            updateHpBar(player);
+        }, 1000);
+    }
+    function stopDamage(player) { if (player.damageInt) { clearInterval(player.damageInt); player.damageInt = null; } }
+    function stopRecover(player) { if (player.recoverInt) { clearInterval(player.recoverInt); player.recoverInt = null; } }
+
+    // 初始化 3D
+    function init3D() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xd7b98a);
+        camera = new THREE.PerspectiveCamera(46, 1, 0.1, 1000);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+        const gameArea = document.getElementById('gameArea');
+        renderer.setPixelRatio(1);
+        renderer.setSize(gameArea.clientWidth, gameArea.clientHeight);
+        document.getElementById('gameArea').appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(0, 20, 0);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        roadTex = makeTrackTexture(3, 12);
+        desertTex = makeTrackTexture(4, 8);
+
+        coneGeo = new THREE.DodecahedronGeometry(0.35, 0);
+        coneMat = new THREE.MeshLambertMaterial({ color: 0xc8c2b6 });
+        loadCamel();
+        loadPalms();
+        loadMerchant();
+        loadCity();
+
+        const desert = new THREE.Mesh(
+            new THREE.PlaneGeometry(220, 220),
+            new THREE.MeshLambertMaterial({ color: 0xd7b98a })
+        );
+        desert.rotation.x = -Math.PI / 2;
+        desert.position.y = -0.28;
+        scene.add(desert);
+
+        const road = new THREE.Mesh(
+            new THREE.PlaneGeometry(ROAD_WIDTH, ROAD_LENGTH),
+            new THREE.MeshLambertMaterial({ color: 0xe4d0a4 })
+        );
+        road.rotation.x = -Math.PI / 2;
+        road.position.y = -0.24;
+        scene.add(road);
+        addPlayerFrame();
+        plantPathStones();
+
+        framePlayfield();
+
+        players.forEach((p, i) => {
+            const traveler = new THREE.Group();
+            traveler.position.set(i === 0 ? 3.2 : -3.2, 0, 0);
+            scene.add(traveler);
+            p.cube = traveler;
+
+            const scaled = 0.5 * CUBE_SCALE * HITBOX_SCALE;
+            const hitboxGeo = new THREE.BoxGeometry(scaled, scaled, scaled);
+            const hitboxMat = new THREE.MeshBasicMaterial({
+                color: p.color,
+                transparent: true,
+                opacity: 0.3,
+                wireframe: true
+            });
+            p.hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+            p.hitbox.visible = false;
+            p.hitbox.position.copy(p.cube.position);
+            scene.add(p.hitbox);
+
+            updateHpBar(p);
+        });
+        mountMerchants();
+
+        // 新增：處理視窗大小變化
+        window.addEventListener('resize', () => {
+            const gameArea = document.getElementById('gameArea');
+            renderer.setPixelRatio(1);
+            renderer.setSize(gameArea.clientWidth, gameArea.clientHeight);
+            framePlayfield();
+        });
+
+        animate();
+    }
+
+    // 動畫迴圈
+    function animate() {
+        requestAnimationFrame(animate);
+        const now = performance.now();
+        const dt = Math.min(50, lastTick ? now - lastTick : 16);
+        lastTick = now;
+        if (gameRunning && !gameOver) {
+            pumpClock(dt);
+            scrollGround(dt);
+            updatePlayers();
+            updateObstacles();
+            updateYellowObstacles();
+            updateSphereObstacles();
+            updateHpBarPositions();
+            checkEdgeDamage();
+        } else if (meeting) {
+            players.forEach((p, i) => {
+                const targetX = i === 0 ? -0.7 : 0.7;
+                p.cube.position.x += (targetX - p.cube.position.x) * 0.06;
+                p.cube.position.z += (-6 - p.cube.position.z) * 0.04;
+                p.cube.position.y = 0;
+                p.cube.rotation.y = Math.PI;
+                p.hitbox.position.copy(p.cube.position);
+            });
+            if (cityRoot) {
+                cityRoot.visible = true;
+                camera.position.lerp(winCamPos, 0.045);
+                camAt.lerp(winCamAt, 0.045);
+                camera.lookAt(camAt);
+            }
+            updateHpBarPositions();
+        } else {
+            players.forEach(p => {
+                if (!p.cube) return;
+                p.cube.position.y = 0;
+                p.cube.rotation.y = Math.PI;
+            });
+        }
+        renderer.render(scene, camera);
+    }
+
+    // 更新玩家
+    function updatePlayers() {
+        let kdx1 = 0, kdz1 = 0;
+        if (keys.a) kdx1 -= maxSpeed;
+        if (keys.d) kdx1 += maxSpeed;
+        if (keys.w) kdz1 -= maxSpeed;
+        if (keys.s) kdz1 += maxSpeed;
+
+        let kdx2 = 0, kdz2 = 0;
+        if (keys.j) kdx2 -= maxSpeed;
+        if (keys.l) kdx2 += maxSpeed;
+        if (keys.i) kdz2 -= maxSpeed;
+        if (keys.k) kdz2 += maxSpeed;
+
+        players[0].cube.position.x += players[0].dx + kdx1;
+        players[0].cube.position.z += players[0].dz + kdz1;
+        players[1].cube.position.x += players[1].dx + kdx2;
+        players[1].cube.position.z += players[1].dz + kdz2;
+        players.forEach(p => { p.cube.rotation.y = Math.PI; });
+
+        players.forEach(p => {
+            p.hitbox.position.copy(p.cube.position);
+            p.cube.position.x = Math.max(-MAX_ZONE, Math.min(MAX_ZONE, p.cube.position.x));
+            p.cube.position.z = Math.max(-MAX_ZONE, Math.min(MAX_ZONE, p.cube.position.z));
+        });
+    }
+
+    // 血量條跟隨
+    function updateHpBarPositions() {
+        players.forEach(p => {
+            hpAnchor.copy(p.cube.position);
+            hpAnchor.y += merchantHeight + 0.15;
+            hpAnchor.project(camera);
+            const x = (hpAnchor.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+            const y = -(hpAnchor.y * 0.5 - 0.5) * renderer.domElement.clientHeight;
+            p.hpContainer.style.left = x + 'px';
+            p.hpContainer.style.top = y + 'px';
+            p.hpContainer.style.display = 'block';
+        });
+    }
+
+    // 邊緣扣血
+    function checkEdgeDamage() {
+        players.forEach(p => {
+            const out = Math.abs(p.cube.position.x) > SAFE_ZONE || Math.abs(p.cube.position.z) > SAFE_ZONE;
+            if (out) {
+                stopRecover(p);
+                p.leftEdgeTime = Date.now();
+                startDamage(p);
+            } else {
+                stopDamage(p);
+                if (Date.now() - p.leftEdgeTime > 2000) startRecover(p);
+            }
+        });
+    }
+
+    // 障礙物生成
+    function makeTrackTexture(repeatX, repeatY) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 128;
+        const g = canvas.getContext('2d');
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, 32, 128);
+        g.fillStyle = '#d9d3c8';
+        g.fillRect(0, 0, 32, 18);
+        g.fillRect(0, 64, 32, 18);
+        g.fillStyle = '#c4b8a4';
+        for (let y = 22; y < 128; y += 64) g.fillRect(12, y, 8, 16);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(repeatX, repeatY);
+        tex.generateMipmaps = false;
+        tex.magFilter = THREE.LinearFilter;
+        tex.minFilter = THREE.LinearFilter;
+        return tex;
+    }
+
+    const ROAD_WIDTH = 15;
+    const ROAD_LENGTH = 46;
+    const palms = [];
+    const palmTemplates = [];
+    const pathStones = [];
+    const PALM_EDGE = 13;
+    const PALM_SPAN = PALM_EDGE * 2;
+
+    function scrollGround(dt) {
+        const shift = dt * 0.0008;
+        roadTex.offset.y = (roadTex.offset.y + shift) % 1;
+        desertTex.offset.y = roadTex.offset.y;
+        const lift = Math.abs(Math.sin(gameClock * 0.004)) * 0.045;
+        players.forEach(p => { p.cube.position.y = lift; });
+        scrollPalms(shift * (ROAD_LENGTH / 12));
+    }
+
+    function scrollPalms(dz) {
+        palms.forEach(tree => {
+            tree.position.z += dz;
+            if (tree.position.z - tree.userData.half > PALM_EDGE) {
+                tree.position.z -= PALM_SPAN;
+                tree.position.x = laneX(tree.userData.side, tree.userData.half);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+            }
+        });
+        pathStones.forEach(stone => {
+            stone.position.z += dz;
+            if (stone.position.z > PALM_EDGE) {
+                stone.position.z -= PALM_SPAN;
+                stone.position.x = (Math.random() - 0.5) * (ROAD_WIDTH - 2.4);
+            }
+        });
+    }
+
+    function laneX(side, half) {
+        return side * (ROAD_WIDTH / 2 + 1.05 + Math.random() * 1.15);
+    }
+
+    function preparePalm(gltf, targetHeight) {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.set(-center.x, -box.min.y, -center.z);
+        const holder = new THREE.Group();
+        holder.add(model);
+        let scale = targetHeight / Math.max(size.y, 0.001);
+        const width = Math.max(size.x, size.z) * scale;
+        if (width > 4.2) scale *= 4.2 / width;
+        holder.scale.setScalar(scale);
+        holder.updateMatrixWorld(true);
+        const fitted = new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3());
+        holder.userData.half = Math.max(fitted.x, fitted.z) / 2;
+        let map = null;
+        model.traverse(o => {
+            if (!o.isMesh) return;
+            const src = Array.isArray(o.material) ? o.material[0] : o.material;
+            if (src && src.map) map = src.map;
+        });
+        const material = new THREE.MeshLambertMaterial({ map, color: 0xffffff });
+        holder.traverse(o => { if (o.isMesh) o.material = material; });
+        return holder;
+    }
+
+    const gltfLoader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+    gltfLoader.setDRACOLoader(dracoLoader);
+    function loadGlb(url, onLoad, onError) {
+        gltfLoader.load(url, onLoad, undefined, onError);
+    }
+
+    function loadPalms() {
+        const specs = [
+            ['coconut-tropical.glb', 5.1],
+            ['coconut-lowpoly.glb', 4.4]
+        ];
+        let pending = specs.length;
+        specs.forEach(([url, height]) => {
+            loadGlb(url, (gltf) => {
+                try { palmTemplates.push(preparePalm(gltf, height)); } catch (err) { console.error(err); }
+                if (--pending === 0 && palmTemplates.length) plantPalms();
+            }, () => {
+                if (--pending === 0 && palmTemplates.length) plantPalms();
+            });
+        });
+    }
+
+    function plantPalms() {
+        const perSide = 9;
+        [-1, 1].forEach(side => {
+            for (let i = 0; i < perSide; i++) {
+                const template = palmTemplates[Math.floor(Math.random() * palmTemplates.length)];
+                const tree = template.clone(true);
+                const vary = 0.95 + Math.random() * 0.4;
+                tree.scale.multiplyScalar(vary);
+                tree.userData = { side, half: template.userData.half * vary };
+                tree.position.set(
+                    laneX(side, tree.userData.half),
+                    0,
+                    -PALM_EDGE + (i + Math.random() * 0.65) * (PALM_SPAN / perSide)
+                );
+                tree.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(tree);
+                palms.push(tree);
+            }
+        });
+    }
+
+    function goodsColor(name) {
+        if (name === '絲綢') return 0x9b2335;
+        if (name === '紙') return 0xe2b657;
+        if (name === '香料') return 0xc45c26;
+        return 0x9fd8e6;
+    }
+
+    function schedule(delay, fn) {
+        scheduled.push({ at: gameClock + delay, fn });
+    }
+
+    function clearSchedule() {
+        scheduled.length = 0;
+    }
+
+    function pumpClock(dt) {
+        gameClock += dt;
+        for (let i = 0; i < scheduled.length; ) {
+            if (scheduled[i].at <= gameClock) {
+                const fn = scheduled.splice(i, 1)[0].fn;
+                fn();
+            } else {
+                i++;
+            }
+        }
+    }
+
+    function edgeCourse() {
+        const direction = Math.floor(Math.random() * 4);
+        const rand = Math.random() * PLANE_SIZE - (PLANE_SIZE / 2);
+        const start = new THREE.Vector3();
+        const end = new THREE.Vector3();
+        const dir = new THREE.Vector3();
+        switch (direction) {
+            case 0: start.set(-GENERATE_EDGE, 0, rand); end.set(GENERATE_EDGE, 0, rand); dir.set(1, 0, 0); break;
+            case 1: start.set(GENERATE_EDGE, 0, rand); end.set(-GENERATE_EDGE, 0, rand); dir.set(-1, 0, 0); break;
+            case 2: start.set(rand, 0, GENERATE_EDGE); end.set(rand, 0, -GENERATE_EDGE); dir.set(0, 0, -1); break;
+            case 3: start.set(rand, 0, -GENERATE_EDGE); end.set(rand, 0, GENERATE_EDGE); dir.set(0, 0, 1); break;
+        }
+        return { start, end, dir };
+    }
+
+    function showRoute(start, end, color, delay, done) {
+        const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+        const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([start.clone(), end.clone()]),
+            material
+        );
+        scene.add(line);
+        lines.push(line);
+        schedule(delay, () => {
+            const idx = lines.indexOf(line);
+            if (idx > -1) {
+                scene.remove(line);
+                lines.splice(idx, 1);
+            }
+            if (!gameRunning || gameOver) return;
+            done();
+        });
+    }
+
+    function addPlayerFrame() {
+        const y = 0.08;
+        const s = SAFE_ZONE;
+        const thick = 0.12;
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0xe07a72,
+            transparent: true,
+            opacity: 0.38,
+            depthWrite: false
+        });
+        const span = s * 2 + thick;
+        [[0, -s, span, thick], [0, s, span, thick], [-s, 0, thick, span], [s, 0, thick, span]].forEach(([x, z, w, d]) => {
+            const edge = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), mat);
+            edge.position.set(x, y, z);
+            scene.add(edge);
+        });
+    }
+
+    function plantPathStones() {
+        for (let i = 0; i < 7; i++) {
+            const stone = new THREE.Mesh(coneGeo, coneMat);
+            const scale = 0.46 + Math.random() * 0.22;
+            stone.scale.set(scale, scale * 0.62, scale);
+            stone.position.set(
+                (Math.random() - 0.5) * (ROAD_WIDTH - 3),
+                0.12,
+                -PALM_EDGE + Math.random() * PALM_SPAN
+            );
+            stone.rotation.y = Math.random() * Math.PI;
+            scene.add(stone);
+            pathStones.push(stone);
+        }
+    }
+
+    function framePlayfield() {
+        const area = document.getElementById('gameArea');
+        camera.fov = 40;
+        camera.aspect = area.clientWidth / Math.max(1, area.clientHeight);
+        camera.updateProjectionMatrix();
+        camera.position.set(0, 13.8, 13.0);
+        camAt.set(0, 0, 2.4);
+        camera.lookAt(camAt);
+    }
+
+    function createObstacle() {
+        if (!gameRunning || gameOver || !camelRoot) return;
+        const count = difficulty === 'easy' ? 1 : 3;
+        for (let i = 0; i < count; i++) {
+            schedule(i * 333, () => {
+                if (!gameRunning || gameOver || !camelRoot) return;
+                const course = edgeCourse();
+                obstacles.push(spawnCamel(course, coneSpeed, '沙色駱駝', camelMatSand));
+            });
+        }
+    }
+
+    function asLambert(root) {
+        root.traverse(o => {
+            if (!o.isMesh) return;
+            const src = Array.isArray(o.material) ? o.material[0] : o.material;
+            const map = src && src.map ? src.map : null;
+            if (map) map.colorSpace = THREE.SRGBColorSpace;
+            o.material = new THREE.MeshLambertMaterial({ map, color: 0xffffff });
+        });
+    }
+
+    function loadMerchant() {
+        loadGlb('arabic_man.glb', (gltf) => {
+            const model = gltf.scene;
+            asLambert(model);
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            model.position.set(-center.x, -box.min.y, -center.z);
+            const holder = new THREE.Group();
+            holder.add(model);
+            holder.scale.setScalar(1.45 / Math.max(size.y, 0.001));
+            holder.updateMatrixWorld(true);
+            const fitted = new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3());
+            merchantHeight = fitted.y;
+            playerHalf = Math.max(fitted.x, fitted.z) * 0.34;
+            merchantTemplate = holder;
+            mountMerchants();
+        }, () => {
+            statusEl.textContent = '商人模型載入失敗';
+        });
+    }
+
+    function mountMerchants() {
+        if (!merchantTemplate || !players[0].cube || players[0].cube.children.length) return;
+        players.forEach(p => {
+            const body = merchantTemplate.clone(true);
+            const tint = p.side === 'east' ? 0xff5c40 : 0x5d86e8;
+            body.traverse(o => {
+                if (!o.isMesh) return;
+                o.material = o.material.clone();
+                o.material.color.set(tint);
+            });
+            p.cube.add(body);
+        });
+    }
+
+    function loadCity() {
+        loadGlb('persian_city.glb', (gltf) => {
+            const model = gltf.scene;
+            const drop = [];
+            model.traverse(o => {
+                if (!o.isMesh) return;
+                const src = Array.isArray(o.material) ? o.material[0] : o.material;
+                const name = (src && src.name) || '';
+                if (/desert|dubai|aerial/i.test(name)) { drop.push(o); return; }
+                const map = src && src.map ? src.map : null;
+                if (map) map.colorSpace = THREE.SRGBColorSpace;
+                o.material = new THREE.MeshLambertMaterial({ map, color: 0xffffff });
+            });
+            drop.forEach(o => o.parent && o.parent.remove(o));
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            model.position.set(-center.x, -box.min.y, -center.z);
+            const holder = new THREE.Group();
+            holder.add(model);
+            const scale = 18 / Math.max(size.y, 0.001);
+            holder.scale.setScalar(scale);
+            holder.updateMatrixWorld(true);
+            const depth = size.z * scale;
+            holder.position.set(0, 0, -ROAD_LENGTH / 2 - depth / 2 + 8);
+            holder.visible = false;
+            cityRoot = holder;
+            scene.add(holder);
+            if (meeting) holder.visible = true;
+        }, () => {
+            console.warn('城市模型載入失敗');
+        });
+    }
+
+    function loadCamel() {
+        loadGlb('camel.glb', (gltf) => {
+            const model = gltf.scene;
+            const lamp = model.getObjectByName('Lamp');
+            if (lamp && lamp.parent) lamp.parent.remove(lamp);
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            model.position.set(-center.x, -box.min.y, -center.z);
+            const holder = new THREE.Group();
+            holder.add(model);
+            const longAxis = Math.max(size.x, size.z);
+            holder.scale.setScalar(1.4 / longAxis);
+            if (size.z > size.x) model.rotation.y = Math.PI / 2;
+            holder.updateMatrixWorld(true);
+            const fitted = new THREE.Box3().setFromObject(holder);
+            const fittedSize = fitted.getSize(new THREE.Vector3());
+            camelHalfX = fittedSize.x / 2;
+            camelHalfZ = fittedSize.z / 2;
+            let source = null;
+            model.traverse(o => {
+                if (o.isMesh && !source) source = Array.isArray(o.material) ? o.material[0] : o.material;
+            });
+            const map = source && source.map ? source.map : null;
+            camelMatSand = new THREE.MeshLambertMaterial({ map, color: 0xffffff });
+            camelMatGold = new THREE.MeshLambertMaterial({ map, color: 0xf0c14a });
+            camelMatBlue = new THREE.MeshLambertMaterial({ map, color: 0x4f78d0 });
+            camelRoot = holder;
+        }, () => {
+            statusEl.textContent = '駱駝模型載入失敗';
+        });
+    }
+
+    function spawnCamel(course, speed, kind, material) {
+        const camel = camelRoot.clone(true);
+        camel.traverse(o => { if (o.isMesh) o.material = material; });
+        camel.position.copy(course.start);
+        camel.rotation.y = Math.atan2(-course.dir.z, course.dir.x);
+        camel.userData = {
+            dx: course.dir.x * speed,
+            dz: course.dir.z * speed,
+            kind,
+            halfX: camelHalfX,
+            halfZ: camelHalfZ
+        };
+        scene.add(camel);
+        return camel;
+    }
+
+    function createYellowObstacle() {
+        if (!gameRunning || gameOver || timeLeft > 30 || !camelRoot) return;
+        const count = difficulty === 'easy' ? 1 : 2;
+        for (let i = 0; i < count; i++) {
+            schedule(i * 2500, () => {
+                if (!gameRunning || gameOver || !camelRoot) return;
+                const course = edgeCourse();
+                const yellow = spawnCamel(course, yellowSpeed, '金色駱駝', camelMatGold);
+                yellowObstacles.push(yellow);
+
+                schedule(500, () => {
+                    if (!yellowObstacles.includes(yellow)) return;
+                    yellow.userData.dx *= 2.5;
+                    yellow.userData.dz *= 2.5;
+                });
+            });
+        }
+    }
+
+    function createSphereObstacle() {
+        if (!gameRunning || gameOver || timeLeft > 15 || !camelRoot) return;
+        const count = difficulty === 'easy' ? 1 : 3;
+        for (let i = 0; i < count; i++) {
+            schedule(i * 333, () => {
+                if (!gameRunning || gameOver || !camelRoot) return;
+                const course = edgeCourse();
+                showRoute(course.start, course.end, 0xb5522a, 1000, () => {
+                    sphereObstacles.push(spawnCamel(course, sphereSpeed, '藍色駱駝', camelMatBlue));
+                });
+            });
+        }
+    }
+    function hitsPlayer(player, obs) {
+        const dx = player.hitbox.position.x - obs.position.x;
+        const dz = player.hitbox.position.z - obs.position.z;
+        if (obs.userData.halfX == null) {
+            const reach = playerHalf + obs.userData.half;
+            return Math.abs(dx) < reach && Math.abs(dz) < reach;
+        }
+        const cos = Math.cos(obs.rotation.y);
+        const sin = Math.sin(obs.rotation.y);
+        const lx = dx * cos - dz * sin;
+        const lz = dx * sin + dz * cos;
+        return Math.abs(lx) < obs.userData.halfX + playerHalf
+            && Math.abs(lz) < obs.userData.halfZ + playerHalf;
+    }
+
+    function checkCollision(player, obs) {
+        if (hitsPlayer(player, obs)) endGame(`${player.name} 撞上了${obs.userData.kind}`);
+    }
+
+    function dropObstacle(list, index) {
+        const obs = list[index];
+        scene.remove(obs);
+        obs.traverse(o => {
+            if (o.material && o.material.userData && o.material.userData.disposable) o.material.dispose();
+        });
+        list.splice(index, 1);
+    }
+
+    function updateObstacles() {
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            const obs = obstacles[i];
+            obs.position.x += obs.userData.dx;
+            obs.position.z += obs.userData.dz;
+            players.forEach(p => checkCollision(p, obs));
+            if (Math.abs(obs.position.x) > GENERATE_EDGE || Math.abs(obs.position.z) > GENERATE_EDGE) {
+                dropObstacle(obstacles, i);
+            }
+        }
+    }
+
+    function updateYellowObstacles() {
+        for (let i = yellowObstacles.length - 1; i >= 0; i--) {
+            const obs = yellowObstacles[i];
+            obs.position.x += obs.userData.dx;
+            obs.position.z += obs.userData.dz;
+            players.forEach(p => checkCollision(p, obs));
+            if (Math.abs(obs.position.x) > GENERATE_EDGE || Math.abs(obs.position.z) > GENERATE_EDGE) {
+                dropObstacle(yellowObstacles, i);
+            }
+        }
+    }
+
+    function updateSphereObstacles() {
+        for (let i = sphereObstacles.length - 1; i >= 0; i--) {
+            const obs = sphereObstacles[i];
+            obs.position.x += obs.userData.dx;
+            obs.position.z += obs.userData.dz;
+            players.forEach(p => checkCollision(p, obs));
+            if (Math.abs(obs.position.x) > GENERATE_EDGE || Math.abs(obs.position.z) > GENERATE_EDGE) {
+                dropObstacle(sphereObstacles, i);
+            }
+        }
+    }
+
+    function endGame(msg = '遊戲結束！') {
+        if (gameOver) return;
+        gameOver = true;
+        gameRunning = false;
+        clearInterval(timerInterval);
+        clearSchedule();
+        meeting = false;
+        statusEl.textContent = msg;
+        gameOverEl.textContent = msg;
+        gameOverEl.style.color = '#b5522a';
+        gameOverEl.style.display = 'block';
+        document.body.classList.add('ended');
+        pauseBtn.disabled = true;
+        startBtn.hidden = false;
+        players.forEach(p => { 
+            p.hpContainer.style.display = 'none'; 
+            stopDamage(p); 
+            stopRecover(p); 
+        });
+    }
+
+    function winGame() {
+        gameOver = true;
+        gameRunning = false;
+        clearInterval(timerInterval);
+        clearSchedule();
+        meeting = true;
+        statusEl.textContent = '兩位旅人一起走到市集';
+        gameOverEl.textContent = '兩位旅人一起走到市集';
+        gameOverEl.style.color = '#0e6b5c';
+        gameOverEl.style.display = 'block';
+        document.body.classList.add('ended');
+        pauseBtn.disabled = true;
+        startBtn.hidden = false;
+        players.forEach(p => { stopDamage(p); stopRecover(p); });
+    }
+
+    // 暫停/繼續
+    function togglePause() {
+        if (gameOver) return;
+        gameRunning = !gameRunning;
+        if (gameRunning) {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = `剩餘時間: ${timeLeft}`;
+                if (timeLeft <= 0) winGame();
+            }, 1000);
+            pauseBtn.textContent = '暫停遊戲';
+            statusEl.textContent = '遊戲繼續！';
+        } else {
+            clearInterval(timerInterval);
+            pauseBtn.textContent = '繼續遊戲';
+            statusEl.textContent = '遊戲暫停中...';
+        }
+    }
+
+    // Bluetooth 連接
+    async function connectPlayer(num) {
+        try {
+            statusEl.textContent = `正在尋找${num === 1 ? '東方' : '西方'}的 micro:bit...`;
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: 'BBC micro:bit' }],
+                optionalServices: [UART_SERVICE_UUID]
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(UART_SERVICE_UUID);
+            const tx = await service.getCharacteristic(UART_TX_UUID);
+            await tx.startNotifications();
+            tx.addEventListener('characteristicvaluechanged', (e) => handleData(e, num-1));
+            
+            if (num === 1) { device1 = device; connectBtn1.disabled = true; disconnectBtn1.disabled = false; }
+            if (num === 2) { device2 = device; connectBtn2.disabled = true; disconnectBtn2.disabled = false; }
+            statusEl.textContent = `${num === 1 ? '東方' : '西方'}旅人已連接`;
+        } catch (err) {
+            statusEl.textContent = `${num === 1 ? '東方' : '西方'}旅人連接失敗: ${err.message}`;
+        }
+    }
+
+    function disconnectPlayer(num) {
+        const dev = num === 1 ? device1 : device2;
+        if (dev && dev.gatt.connected) dev.gatt.disconnect();
+        if (num === 1) { device1 = null; connectBtn1.disabled = false; disconnectBtn1.disabled = true; }
+        if (num === 2) { device2 = null; connectBtn2.disabled = false; disconnectBtn2.disabled = true; }
+        statusEl.textContent = `${num === 1 ? '東方' : '西方'}旅人已斷開`;
+    }
+
+    function handleData(event, playerIdx) {
+        const data = new Uint8Array(event.target.value.buffer);
+        const str = new TextDecoder().decode(data).trim();
+        if (str.includes('+')) {
+            const [xStr, yStr] = str.split('+');
+            const x = parseInt(xStr), y = parseInt(yStr);
+            if (!isNaN(x) && !isNaN(y)) {
+                players[playerIdx].dx = Math.abs(x) < 100 ? 0 : (x / 1024) * maxSpeed;
+                players[playerIdx].dz = Math.abs(y) < 100 ? 0 : (y / 1024) * maxSpeed;
+            }
+        }
+    }
+
+    // 重置遊戲
+    function resetGame() {
+        gameRunning = true;
+        gameOver = false;
+        meeting = false;
+        if (cityRoot) cityRoot.visible = false;
+        framePlayfield();
+        timeLeft = 45;
+        timerEl.textContent = '剩餘時間: 45';
+        gameOverEl.style.display = 'none';
+        gameOverEl.textContent = '';
+        gameOverEl.style.color = '#b5522a';
+        document.body.classList.remove('ended');
+
+        clearInterval(timerInterval);
+        clearSchedule();
+        gameClock = 0;
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            timerEl.textContent = `剩餘時間: ${timeLeft}`;
+            if (timeLeft <= 0) winGame();
+        }, 1000);
+
+        pauseBtn.disabled = false;
+        pauseBtn.textContent = '暫停遊戲';
+        startBtn.hidden = true;
+        timerEl.style.display = 'block';
+
+        // 重置玩家
+        players.forEach((p, i) => {
+            p.hp = 100;
+            p.dx = 0;
+            p.dz = 0;
+            p.goods = p.side === 'east'
+                ? (Math.random() < 0.5 ? '絲綢' : '紙')
+                : (Math.random() < 0.5 ? '香料' : '玻璃');
+            if (p.packMesh) p.packMesh.material.color.set(goodsColor(p.goods));
+            p.cube.position.set(i === 0 ? 3.2 : -3.2, 0, 0);
+            p.cube.rotation.y = Math.PI;
+            p.hitbox.position.copy(p.cube.position);
+            stopDamage(p); 
+            stopRecover(p); 
+            p.leftEdgeTime = 0;
+            updateHpBar(p);
+            p.hpContainer.style.display = 'block';
+        });
+
+        // 清理障礙物
+        while (obstacles.length) dropObstacle(obstacles, obstacles.length - 1);
+        while (yellowObstacles.length) dropObstacle(yellowObstacles, yellowObstacles.length - 1);
+        while (sphereObstacles.length) dropObstacle(sphereObstacles, sphereObstacles.length - 1);
+        lines.forEach(l => {
+            scene.remove(l);
+            l.geometry.dispose();
+            l.material.dispose();
+        });
+        lines = [];
+
+        statusEl.textContent = '上路了。兩人要一起走到市集。';
+    }
+
+    // 鍵盤事件
+    document.addEventListener('keydown', e => { 
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) keys[key] = true; 
+    });
+    document.addEventListener('keyup', e => { 
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) keys[key] = false; 
+    });
+
+    // 定時生成障礙物
+    setInterval(createObstacle, 1000);
+    setInterval(createYellowObstacle, 1000);
+    setInterval(createSphereObstacle, 1500);
+
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const closeSettings = document.getElementById('closeSettings');
+    settingsBtn.onclick = () => settingsModal.classList.add('open');
+    closeSettings.onclick = () => settingsModal.classList.remove('open');
+    settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.remove('open'); };
+
+    // 按鈕事件
+    const easyBtn = document.getElementById('easyBtn');
+    const hardBtn = document.getElementById('hardBtn');
+    function setDifficulty(next) {
+        difficulty = next;
+        easyBtn.classList.toggle('active', next === 'easy');
+        hardBtn.classList.toggle('active', next === 'hard');
+    }
+    easyBtn.onclick = () => setDifficulty('easy');
+    hardBtn.onclick = () => setDifficulty('hard');
+
+    startBtn.onclick = resetGame;
+    pauseBtn.onclick = togglePause;
+    connectBtn1.onclick = () => connectPlayer(1);
+    disconnectBtn1.onclick = () => disconnectPlayer(1);
+    connectBtn2.onclick = () => connectPlayer(2);
+    disconnectBtn2.onclick = () => disconnectPlayer(2);
+
+    // 啟動！
+    init3D();
+    </script>
+</body>
+</html>
